@@ -126,10 +126,16 @@ class APIClient {
   private client: AxiosInstance;
   private baseURL: string;
 
-  constructor(baseURL: string = 'http://localhost:8000') {
-    this.baseURL = baseURL;
+  constructor(baseURL: string = '') {
+    // Handle relative URLs by using the current origin
+    if (baseURL && !baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
+      this.baseURL = baseURL;
+    } else {
+      this.baseURL = baseURL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
+    }
+    
     this.client = axios.create({
-      baseURL,
+      baseURL: this.baseURL,
       timeout: 30000, // 30 second timeout
       headers: {
         'Content-Type': 'application/json',
@@ -285,14 +291,19 @@ class APIClient {
 
   // WebSocket URL
   getWebSocketURL(): string {
-    const wsProtocol = this.baseURL.startsWith('https') ? 'wss' : 'ws';
-    return this.baseURL.replace(/^https?/, wsProtocol) + '/ws';
+    if (typeof window !== 'undefined') {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${wsProtocol}//${window.location.host}/ws`;
+    } else {
+      // Fallback for SSR
+      return 'ws://localhost:8000/ws';
+    }
   }
 }
 
 // Create default instance
 const apiClient = new APIClient(
-  import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  import.meta.env.VITE_API_URL || ''
 );
 
 export default apiClient;

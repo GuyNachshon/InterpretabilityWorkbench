@@ -94,7 +94,19 @@ export class WebSocketClient {
   }>();
 
   constructor(url: string) {
-    this.url = url;
+    // Handle relative URLs by converting to WebSocket URL
+    if (url && !url.startsWith('ws://') && !url.startsWith('wss://')) {
+      if (typeof window !== 'undefined') {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        this.url = `${protocol}//${host}${url.startsWith('/') ? url : '/' + url}`;
+      } else {
+        // Fallback for SSR
+        this.url = `ws://localhost:8000${url.startsWith('/') ? url : '/' + url}`;
+      }
+    } else {
+      this.url = url;
+    }
   }
 
   // Connection Management
@@ -364,7 +376,7 @@ export class WebSocketClient {
 
 // Create default instance
 const wsClient = new WebSocketClient(
-  import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
+  import.meta.env.VITE_WS_URL || ''
 );
 
 export default wsClient;

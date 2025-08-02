@@ -1,6 +1,36 @@
-# React + TypeScript + Vite
+# Interpretability Workbench UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite frontend for the Interpretability Workbench.
+
+## Environment Configuration
+
+The UI can be configured to connect to different API endpoints using environment variables:
+
+### Development (Default)
+For development, the UI uses relative URLs to connect to the same origin as the frontend:
+
+```bash
+# No environment variables needed - uses relative URLs
+```
+
+### Production or Different Origin
+For production or when the API is on a different origin, set the environment variables:
+
+```bash
+# Copy the example file
+cp env.example .env
+
+# Edit .env with your API endpoints
+VITE_API_URL=http://your-api-domain.com
+VITE_WS_URL=ws://your-api-domain.com/ws
+```
+
+### Environment Variables
+
+- `VITE_API_URL`: Base URL for API requests (default: relative to current origin)
+- `VITE_WS_URL`: WebSocket URL for real-time updates (default: relative to current origin)
+
+## Development
 
 Currently, two official plugins are available:
 
