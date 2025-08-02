@@ -211,8 +211,14 @@ install_nginx_config() {
 create_systemd_service() {
     print_info "Creating systemd service..."
     
-    # Get Python executable path
-    PYTHON_PATH=$(which python3)
+    # Use the virtual environment Python if it exists, otherwise use system Python
+    if [[ -f "$PROJECT_ROOT/.venv/bin/python" ]]; then
+        PYTHON_PATH="$PROJECT_ROOT/.venv/bin/python"
+        print_info "Using virtual environment Python: $PYTHON_PATH"
+    else
+        PYTHON_PATH=$(which python3)
+        print_warning "Using system Python: $PYTHON_PATH"
+    fi
     
     # Create service file
     cat > "$PROJECT_ROOT/$SERVICE_NAME.service" << EOF

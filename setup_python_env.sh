@@ -69,15 +69,15 @@ source "$PROJECT_ROOT/.venv/bin/activate"
 
 # Upgrade pip
 print_info "Upgrading pip..."
-pip install --upgrade pip
+"$PROJECT_ROOT/.venv/bin/pip" install --upgrade pip
 
 # Install dependencies
 print_info "Installing Python dependencies..."
 if [[ -f "$PROJECT_ROOT/pyproject.toml" ]]; then
-    pip install -e .
+    "$PROJECT_ROOT/.venv/bin/pip" install -e .
 else
     print_warning "pyproject.toml not found, installing basic dependencies..."
-    pip install fastapi uvicorn torch transformers numpy pandas
+    "$PROJECT_ROOT/.venv/bin/pip" install fastapi uvicorn torch transformers numpy pandas
 fi
 
 print_status "Python environment setup completed!"
