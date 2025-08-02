@@ -907,7 +907,18 @@ async def websocket_endpoint(websocket: WebSocket):
 def main():
     """Main entry point for the server"""
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    import os
+    
+    # Disable reload in production/systemd environment
+    reload_enabled = os.environ.get("RELOAD", "false").lower() == "true"
+    
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000, 
+        reload=reload_enabled,
+        workers=1  # Single worker for systemd
+    )
 
 
 if __name__ == "__main__":
