@@ -104,7 +104,7 @@ build_frontend() {
     
     # Build the project
     print_info "Building React app..."
-    npm run build
+    npx vite build
     
     if [[ ! -d "dist" ]]; then
         print_error "Build failed - dist directory not created"
