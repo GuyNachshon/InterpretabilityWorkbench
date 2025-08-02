@@ -1,0 +1,16 @@
+[Unit]
+Description=InterpretabilityWorkbench FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/your/app
+Environment=PATH=/path/to/your/venv/bin
+ExecStart=/path/to/your/venv/bin/python run.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 

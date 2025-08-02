@@ -376,7 +376,7 @@ export class WebSocketClient {
 
 // Create default instance
 const wsClient = new WebSocketClient(
-  import.meta.env.VITE_WS_URL || ''
+  import.meta.env.VITE_WS_URL || '/ws'
 );
 
 export default wsClient;

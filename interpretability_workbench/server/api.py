@@ -341,7 +341,17 @@ async def create_patch(patch_request: PatchRequest):
         if not patch_request.enabled:
             model_state.patcher.disable_patch(patch_id)
         
-        return {"success": True, "patch_id": patch_id}
+        # Return patch in the format expected by frontend
+        patches_dict = model_state.patcher.list_patches()
+        patch_data = patches_dict[patch_id]
+        return {
+            "id": patch_id,
+            "featureId": patch_data.get("feature_id", ""),
+            "name": patch_data.get("name", ""),
+            "isEnabled": patch_data.get("enabled", False),
+            "strength": patch_data.get("strength", 1.0),
+            "description": patch_data.get("description", "")
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -352,7 +362,20 @@ async def get_patches():
     if model_state.patcher is None:
         return []
     
-    return model_state.patcher.list_patches()
+    patches_dict = model_state.patcher.list_patches()
+    # Convert dictionary to list format expected by frontend
+    patches_list = []
+    for patch_id, patch_data in patches_dict.items():
+        patches_list.append({
+            "id": patch_id,
+            "featureId": patch_data.get("feature_id", ""),
+            "name": patch_data.get("name", ""),
+            "isEnabled": patch_data.get("enabled", False),
+            "strength": patch_data.get("strength", 1.0),
+            "description": patch_data.get("description", "")
+        })
+    
+    return patches_list
 
 
 @app.patch("/patch/{patch_id}")
@@ -388,9 +411,17 @@ async def update_patch(patch_id: str, request: UpdatePatchRequest):
             "updates": updated_properties
         }))
         
-        # Return updated patch info
+        # Return updated patch in the format expected by frontend
         updated_patches = model_state.patcher.list_patches()
-        return {"success": True, "patch": updated_patches[patch_id]}
+        patch_data = updated_patches[patch_id]
+        return {
+            "id": patch_id,
+            "featureId": patch_data.get("feature_id", ""),
+            "name": patch_data.get("name", ""),
+            "isEnabled": patch_data.get("enabled", False),
+            "strength": patch_data.get("strength", 1.0),
+            "description": patch_data.get("description", "")
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -420,7 +451,17 @@ async def toggle_patch(patch_id: str):
             "action": action
         }))
         
-        return {"success": True, "action": action}
+        # Return updated patch in the format expected by frontend
+        updated_patches = model_state.patcher.list_patches()
+        patch_data = updated_patches[patch_id]
+        return {
+            "id": patch_id,
+            "featureId": patch_data.get("feature_id", ""),
+            "name": patch_data.get("name", ""),
+            "isEnabled": patch_data.get("enabled", False),
+            "strength": patch_data.get("strength", 1.0),
+            "description": patch_data.get("description", "")
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -859,14 +900,8 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# Serve static files (React app) - path relative to project root
-import os
-ui_dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ui", "dist")
-if os.path.exists(ui_dist_path):
-    app.mount("/", StaticFiles(directory=ui_dist_path, html=True), name="static")
-else:
-    print(f"Warning: UI dist directory not found at {ui_dist_path}")
-    print("Run 'cd ui && npm run build' to build the frontend")
+# Note: Static file serving is handled by nginx in production
+# This server only handles API endpoints and WebSocket connections
 
 
 def main():

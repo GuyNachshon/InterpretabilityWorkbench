@@ -166,7 +166,9 @@ class LoRAPatcher:
             "rank": rank,
             "target_type": target_type,
             "module_patches": patches_created,
-            "enabled": True
+            "enabled": True,
+            "name": f"Feature {feature_id} (Layer {layer_idx})",
+            "description": f"LoRA patch for feature {feature_id} at layer {layer_idx}"
         }
         
         return patch_id
@@ -246,6 +248,21 @@ class LoRAPatcher:
                 self.patches[module_patch_id].disable()
         
         metadata["enabled"] = False
+    
+    def update_patch_strength(self, patch_id: str, strength: float):
+        """Update the strength of a patch"""
+        if patch_id not in self.patch_metadata:
+            raise ValueError(f"Patch {patch_id} not found")
+        
+        metadata = self.patch_metadata[patch_id]
+        metadata["strength"] = strength
+        
+        # Update the scaling factor for all LoRA modules in this patch
+        for module_patch_id in metadata["module_patches"]:
+            if module_patch_id in self.patches:
+                lora_module = self.patches[module_patch_id]
+                # Update the scaling factor
+                lora_module.scaling = (lora_module.alpha / lora_module.rank) * strength
     
     def remove_patch(self, patch_id: str):
         """Completely remove a patch and restore original modules"""
