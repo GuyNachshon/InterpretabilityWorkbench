@@ -510,7 +510,13 @@ const useAppStore = () => {
   useEffect(() => {
     // Check model and SAE status on startup
     apiClient.getModelStatus().then(updateModel).catch(() => {});
-    apiClient.getSAEStatus().then(updateSAE).catch(() => {});
+    apiClient.getSAEStatus().then((saeStatus) => {
+      updateSAE(saeStatus);
+      // Auto-load features if SAE is ready
+      if (saeStatus.status === 'ready') {
+        loadFeatures();
+      }
+    }).catch(() => {});
     loadPatches();
   }, []);
 
@@ -1721,6 +1727,18 @@ const InterpretabilityWorkbench: React.FC = () => {
         <FeatureDetail store={store} />
         <PatchConsole store={store} />
       </div>
+      
+      {/* Debug: Manual feature loading button */}
+      {store.state.sae.status === 'ready' && store.state.features.length === 0 && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button 
+            onClick={() => store.loadFeatures()}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Load Features ({store.state.sae.featureCount || 0})
+          </Button>
+        </div>
+      )}
       
       <GraphDrawer store={store} />
       <ProgressTracker store={store} />
