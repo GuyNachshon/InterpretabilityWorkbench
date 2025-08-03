@@ -577,7 +577,7 @@ const Header: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ store }) 
   const { state, updateUI, loadModel, loadSAE, startProgress, updateProgress, completeProgress, addActiveJob } = store;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [trainSAEOpen, setTrainSAEOpen] = useState(false);
-  const [modelName, setModelName] = useState('microsoft/DialoGPT-small');
+  const [modelName, setModelName] = useState('openai-community/gpt2');
   const [saePath, setSaePath] = useState('');
   const [activationsPath, setActivationsPath] = useState('');
   
@@ -825,7 +825,7 @@ const Header: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ store }) 
                 <Input
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
-                  placeholder="e.g., microsoft/DialoGPT-small"
+                  placeholder="e.g., openai-community/gpt2"
                 />
               </div>
               <Separator />
