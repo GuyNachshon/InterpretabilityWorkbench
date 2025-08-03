@@ -293,7 +293,9 @@ class APIClient {
   getWebSocketURL(): string {
     if (typeof window !== 'undefined') {
       const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      return `${wsProtocol}//${window.location.host}/ws`;
+      // Use window.location.origin to avoid IP address issues
+      const origin = window.location.origin;
+      return `${origin.replace(/^http/, 'ws')}/ws`;
     } else {
       // Fallback for SSR
       return 'ws://localhost:8000/ws';
