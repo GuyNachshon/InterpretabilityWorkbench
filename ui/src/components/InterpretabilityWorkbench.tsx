@@ -255,13 +255,17 @@ const useAppStore = () => {
     }
   };
 
-  const loadSAE = async (saePath: string, activationsPath: string) => {
+  const loadSAE = async (saePath: string, activationsPath: string, layerIdx: number = 6) => {
     try {
       updateLoading({ sae: true });
       updateSAE({ status: 'loading' });
       clearError('sae');
       
-      const result = await apiClient.loadSAE({ saePath, activationsPath });
+      const result = await apiClient.loadSAE({ 
+        layer_idx: layerIdx,
+        saePath, 
+        activationsPath 
+      });
       updateSAE(result);
       toast.success('SAE loaded successfully');
       
