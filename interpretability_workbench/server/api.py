@@ -286,8 +286,8 @@ async def load_sae(layer_idx: int, sae_path: str, activation_data_path: Optional
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/features", response_model=List[FeatureInfo])
-async def get_features(layer_idx: Optional[int] = None, limit: int = 100):
+@app.get("/features")
+async def get_features(layer_idx: Optional[int] = None, limit: int = 100, offset: int = 0, search: Optional[str] = None, sortBy: str = "activation", sortOrder: str = "desc"):
     """Get list of available features"""
     features = []
     
@@ -313,7 +313,28 @@ async def get_features(layer_idx: Optional[int] = None, limit: int = 100):
                 activation_strength=feature_data["activation_strength"]
             ))
     
-    return features[:limit]
+    # Apply search filter if provided
+    if search:
+        features = [f for f in features if search.lower() in f.id.lower()]
+    
+    # Apply sorting
+    if sortBy == "activation":
+        features.sort(key=lambda x: x.activation_strength, reverse=(sortOrder == "desc"))
+    elif sortBy == "layer":
+        features.sort(key=lambda x: x.layer_idx, reverse=(sortOrder == "desc"))
+    elif sortBy == "frequency":
+        features.sort(key=lambda x: x.sparsity, reverse=(sortOrder == "desc"))
+    
+    total = len(features)
+    
+    # Apply pagination
+    features = features[offset:offset + limit]
+    
+    return {
+        "features": features,
+        "total": total,
+        "hasMore": offset + limit < total
+    }
 
 
 @app.post("/patch")
