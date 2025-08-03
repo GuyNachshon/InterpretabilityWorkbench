@@ -64,6 +64,7 @@ export interface LoadModelRequest {
 }
 
 export interface LoadSAERequest {
+  layer_idx: number;
   saePath: string;
   activationsPath: string;
 }

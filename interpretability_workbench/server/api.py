@@ -260,28 +260,33 @@ async def load_model(request: LoadModelRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class LoadSAERequest(BaseModel):
+    layer_idx: int
+    saePath: str
+    activationsPath: str
+
 @app.post("/load-sae")
-async def load_sae(layer_idx: int, sae_path: str, activation_data_path: Optional[str] = None):
+async def load_sae(request: LoadSAERequest):
     """Load SAE for a specific layer"""
     try:
-        model_state.load_sae(layer_idx, sae_path)
+        model_state.load_sae(request.layer_idx, request.saePath)
         
         # Store activation data path for feature analysis
-        if activation_data_path and Path(activation_data_path).exists():
-            model_state.activation_data_paths[layer_idx] = activation_data_path
+        if request.activationsPath and Path(request.activationsPath).exists():
+            model_state.activation_data_paths[request.layer_idx] = request.activationsPath
             
             # Create feature analyzer
-            if model_state.tokenizer and layer_idx in model_state.sae_models:
+            if model_state.tokenizer and request.layer_idx in model_state.sae_models:
                 analyzer = FeatureAnalyzer(
-                    sae_model=model_state.sae_models[layer_idx],
+                    sae_model=model_state.sae_models[request.layer_idx],
                     tokenizer=model_state.tokenizer,
-                    activation_data_path=activation_data_path,
-                    layer_idx=layer_idx
+                    activation_data_path=request.activationsPath,
+                    layer_idx=request.layer_idx
                 )
-                model_state.feature_analyzers[layer_idx] = analyzer
+                model_state.feature_analyzers[request.layer_idx] = analyzer
         
-        model_state.analyze_features(layer_idx, activation_data_path)
-        return {"success": True, "layer_idx": layer_idx}
+        model_state.analyze_features(request.layer_idx, request.activationsPath)
+        return {"success": True, "layer_idx": request.layer_idx}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
