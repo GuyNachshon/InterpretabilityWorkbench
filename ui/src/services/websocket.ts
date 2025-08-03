@@ -98,8 +98,9 @@ export class WebSocketClient {
     if (url && !url.startsWith('ws://') && !url.startsWith('wss://')) {
       if (typeof window !== 'undefined') {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        this.url = `${protocol}//${host}${url.startsWith('/') ? url : '/' + url}`;
+        // Use window.location.origin to avoid IP address issues
+        const origin = window.location.origin;
+        this.url = `${origin.replace(/^http/, 'ws')}${url.startsWith('/') ? url : '/' + url}`;
       } else {
         // Fallback for SSR
         this.url = `ws://localhost:8000${url.startsWith('/') ? url : '/' + url}`;
