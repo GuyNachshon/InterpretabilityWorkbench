@@ -340,11 +340,15 @@ const useAppStore = () => {
       clearError('patches');
       
       const patches = await apiClient.getPatches();
-      updateState({ patches });
+      // Ensure patches is always an array
+      const patchesArray = Array.isArray(patches) ? patches : [];
+      updateState({ patches: patchesArray });
     } catch (error: any) {
       const errorMsg = error.response?.data?.detail || error.message || 'Failed to load patches';
       updateError('patches', errorMsg);
       toast.error(`Failed to load patches: ${errorMsg}`);
+      // Set empty array on error
+      updateState({ patches: [] });
     } finally {
       updateLoading({ patches: false });
     }
@@ -756,7 +760,7 @@ const Header: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ store }) 
           </Badge>
           <Badge variant="outline" className="flex items-center gap-2">
             <Activity className="w-3 h-3" />
-            Patches: {state.patches.filter(p => p.isEnabled).length}/{state.patches.length}
+            Patches: {Array.isArray(state.patches) ? state.patches.filter(p => p.isEnabled).length : 0}/{Array.isArray(state.patches) ? state.patches.length : 0}
           </Badge>
           {!state.ui.wsConnected && (
             <Badge variant="destructive" className="flex items-center gap-2">

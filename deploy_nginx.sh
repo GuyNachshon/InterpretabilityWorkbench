@@ -128,13 +128,6 @@ server {
     listen 80;
     server_name localhost;  # Change this to your domain in production
 
-    # Serve static files (React app)
-    location / {
-        root $DIST_PATH;
-        try_files \$uri \$uri/ /index.html;
-        index index.html;
-    }
-
     # Proxy API requests to FastAPI backend
     location /api/ {
         proxy_pass http://localhost:$BACKEND_PORT/;
@@ -163,6 +156,12 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    # Serve static files (React app)
+    location / {
+        root $DIST_PATH;
+        try_files \$uri \$uri/ /index.html;
+        index index.html;
     }
 
     # Gzip compression
