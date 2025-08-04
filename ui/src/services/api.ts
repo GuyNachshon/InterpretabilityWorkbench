@@ -137,7 +137,7 @@ class APIClient {
     
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000, // 30 second timeout
+      timeout: 300000, // 5 minute timeout for SAE loading and feature analysis
       headers: {
         'Content-Type': 'application/json',
       },
