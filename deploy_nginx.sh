@@ -128,9 +128,18 @@ server {
     listen 80;
     server_name localhost 34.61.238.238;  # Change this to your domain in production
 
+    # Proxy API requests to FastAPI backend
+    location /api/ {
+        proxy_pass http://localhost:8000/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
     # Proxy WebSocket connections
     location /ws {
-        proxy_pass http://127.0.0.1:8000/ws;
+        proxy_pass http://localhost:8000/ws;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -140,9 +149,9 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Proxy API endpoints - more specific to avoid conflicts
-    location ~ ^/(health|ping|model|sae|features|patch|inference|export|load-model|load-sae) {
-        proxy_pass http://127.0.0.1:8000;
+    # Proxy other API endpoints
+    location ~ ^/(model|sae|features|patch|inference|export|health|ping|load-model|load-sae) {
+        proxy_pass http://localhost:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -155,14 +164,9 @@ server {
         try_files $uri $uri/ /index.html;
         index index.html;
         
-        # Add cache-busting headers for all static files
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        add_header Pragma "no-cache";
-        add_header Expires "0";
-        
-        # Extra cache-busting for JavaScript files
+        # Add cache-busting headers for JavaScript files
         location ~* \.(js|css)$ {
-            add_header Cache-Control "no-cache, no-store, must-revalidate, max-age=0";
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
             add_header Pragma "no-cache";
             add_header Expires "0";
         }
