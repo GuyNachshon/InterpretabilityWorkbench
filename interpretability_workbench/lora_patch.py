@@ -319,20 +319,68 @@ class LoRAPatcher:
         """Load patches from disk"""
         input_path = Path(input_dir)
         
+        if not input_path.exists():
+            raise ValueError(f"Patch directory {input_dir} does not exist")
+        
         # Load metadata
-        with open(input_path / "patch_metadata.json", "r") as f:
+        metadata_file = input_path / "patch_metadata.json"
+        if not metadata_file.exists():
+            raise ValueError(f"Patch metadata file not found: {metadata_file}")
+        
+        with open(metadata_file, "r") as f:
             self.patch_metadata = json.load(f)
         
-        # Load patch weights
-        for patch_file in input_path.glob("*.safetensors"):
-            patch_id = patch_file.stem
-            weights = safetensors.load_file(patch_file)
+        # Load patch weights and recreate LoRA modules
+        for patch_id, metadata in self.patch_metadata.items():
+            module_patches = metadata.get("module_patches", [])
             
-            # Recreate LoRA modules (this is simplified - in practice you'd need more info)
-            # This would need to be implemented based on the specific requirements
-            pass
+            for module_patch_id in module_patches:
+                patch_file = input_path / f"{module_patch_id}.safetensors"
+                
+                if patch_file.exists():
+                    try:
+                        # Load weights
+                        weights = safetensors.load_file(patch_file)
+                        
+                        # Get original module name from patch_id
+                        # Format: feature_xxx_layer_y_module_name
+                        parts = module_patch_id.split('_')
+                        if len(parts) >= 4:
+                            # Reconstruct module name
+                            module_name_parts = parts[3:]  # Skip feature_xxx_layer_y
+                            module_name = '.'.join(module_name_parts)
+                            
+                            # Get original module
+                            original_module = self._get_module_by_name(module_name)
+                            if original_module is not None:
+                                # Create LoRA module
+                                rank = metadata.get("rank", 8)
+                                lora_module = LoRAModule(original_module, rank=rank)
+                                
+                                # Load weights into LoRA module
+                                lora_module.lora_A.data = weights["lora_A"]
+                                lora_module.lora_B.data = weights["lora_B"]
+                                
+                                # Store in patches
+                                self.original_modules[module_patch_id] = original_module
+                                self.patches[module_patch_id] = lora_module
+                                
+                                # Replace in model
+                                self._replace_module(module_name, lora_module)
+                                
+                                # Set enabled state
+                                if metadata.get("enabled", False):
+                                    lora_module.enable()
+                                else:
+                                    lora_module.disable()
+                                    
+                    except Exception as e:
+                        print(f"Warning: Failed to load patch {module_patch_id}: {e}")
+                        continue
+                else:
+                    print(f"Warning: Patch file not found: {patch_file}")
         
-        print(f"Patches loaded from {input_path}")
+        print(f"Loaded {len(self.patches)} patches from {input_path}")
 
 
 def test_lora_patching():

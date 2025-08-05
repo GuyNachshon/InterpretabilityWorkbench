@@ -109,6 +109,9 @@ export interface TrainSAERequest {
   tied_weights?: boolean;
   activation_fn?: string;
   output_dir?: string;
+  batch_size?: number;
+  num_workers?: number;
+  max_samples?: number | null;
 }
 
 export interface SAETrainingJob {
@@ -279,6 +282,11 @@ class APIClient {
   // SAE Training
   async trainSAE(request: TrainSAERequest): Promise<{ success: boolean; job_id: string; message: string; output_dir: string }> {
     const response = await this.client.post('/sae/train', request);
+    return response.data;
+  }
+
+  async trainSAEFast(request: TrainSAERequest): Promise<{ success: boolean; job_id: string; message: string; output_dir: string; mode: string }> {
+    const response = await this.client.post('/sae/train-fast', request);
     return response.data;
   }
 

@@ -59,11 +59,38 @@ export interface PongMessage extends WebSocketMessage {
   type: 'pong';
 }
 
+export interface TrainingProgressMessage extends WebSocketMessage {
+  type: 'training_progress';
+  job_id: string;
+  status: 'training' | 'completed' | 'failed';
+  epoch?: number;
+  total_epochs?: number;
+  progress?: number;
+  metrics?: Record<string, number>;
+  elapsed_time?: number;
+  estimated_remaining?: number;
+}
+
+export interface TrainingCompletedMessage extends WebSocketMessage {
+  type: 'training_completed';
+  job_id: string;
+  status: 'completed';
+}
+
+export interface TrainingFailedMessage extends WebSocketMessage {
+  type: 'training_failed';
+  job_id: string;
+  error: string;
+}
+
 export type ServerMessage = 
   | InferenceResultMessage 
   | PatchToggledMessage 
   | ModelStatusMessage 
-  | PongMessage;
+  | PongMessage
+  | TrainingProgressMessage
+  | TrainingCompletedMessage
+  | TrainingFailedMessage;
 
 export type ClientMessage = 
   | InferenceRequestMessage 
@@ -133,6 +160,16 @@ export class WebSocketClient {
       });
     }
 
+    // Add exponential backoff for reconnection attempts
+    if (this.reconnectAttempts > 0) {
+      const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          this.connect().then(resolve).catch(() => resolve());
+        }, delay);
+      });
+    }
+
     return new Promise((resolve, reject) => {
       try {
         this.isConnecting = true;
@@ -156,7 +193,12 @@ export class WebSocketClient {
           
           // Auto-reconnect unless it was a clean close
           if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
             this.scheduleReconnect();
+          } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('Max reconnection attempts reached');
+            this.onErrorHandlers.forEach(handler => handler(new Error('Max reconnection attempts reached')));
           }
         };
 

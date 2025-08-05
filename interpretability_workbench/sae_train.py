@@ -12,12 +12,88 @@ from typing import Optional, Tuple, Dict, Any
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import safetensors.torch as safetensors
+import json
+import asyncio
+from datetime import datetime
+
+
+class TrainingProgressCallback(pl.Callback):
+    """Custom callback to track training progress and communicate via WebSocket"""
+    
+    def __init__(self, job_id: str, websocket_manager=None):
+        super().__init__()
+        self.job_id = job_id
+        self.websocket_manager = websocket_manager
+        self.start_time = datetime.now()
+        
+    def on_train_start(self, trainer, pl_module):
+        """Called when training starts"""
+        if self.websocket_manager:
+            asyncio.create_task(self.websocket_manager.broadcast(json.dumps({
+                "type": "training_progress",
+                "job_id": self.job_id,
+                "status": "training",
+                "epoch": 0,
+                "total_epochs": trainer.max_epochs,
+                "progress": 0.0,
+                "metrics": {}
+            })))
+    
+    def on_train_epoch_end(self, trainer, pl_module):
+        """Called at the end of each training epoch"""
+        current_epoch = trainer.current_epoch
+        total_epochs = trainer.max_epochs
+        progress = (current_epoch + 1) / total_epochs * 100
+        
+        # Get current metrics
+        metrics = {}
+        if hasattr(trainer, 'callback_metrics'):
+            for key, value in trainer.callback_metrics.items():
+                if isinstance(value, torch.Tensor):
+                    metrics[key] = value.item()
+                else:
+                    metrics[key] = value
+        
+        # Calculate estimated time remaining
+        elapsed_time = (datetime.now() - self.start_time).total_seconds()
+        if current_epoch > 0:
+            avg_epoch_time = elapsed_time / (current_epoch + 1)
+            remaining_epochs = total_epochs - (current_epoch + 1)
+            estimated_remaining = avg_epoch_time * remaining_epochs
+        else:
+            estimated_remaining = 0
+        
+        if self.websocket_manager:
+            asyncio.create_task(self.websocket_manager.broadcast(json.dumps({
+                "type": "training_progress",
+                "job_id": self.job_id,
+                "status": "training",
+                "epoch": current_epoch + 1,
+                "total_epochs": total_epochs,
+                "progress": progress,
+                "metrics": metrics,
+                "elapsed_time": elapsed_time,
+                "estimated_remaining": estimated_remaining
+            })))
+    
+    def on_train_end(self, trainer, pl_module):
+        """Called when training ends"""
+        if self.websocket_manager:
+            asyncio.create_task(self.websocket_manager.broadcast(json.dumps({
+                "type": "training_progress",
+                "job_id": self.job_id,
+                "status": "completed",
+                "epoch": trainer.max_epochs,
+                "total_epochs": trainer.max_epochs,
+                "progress": 100.0,
+                "metrics": {}
+            })))
 
 
 class ActivationDataset(Dataset):
     """Dataset for loading activation data from parquet files"""
     
-    def __init__(self, parquet_path: str, layer_idx: int):
+    def __init__(self, parquet_path: str, layer_idx: int, max_samples: Optional[int] = None):
         self.parquet_path = Path(parquet_path)
         self.layer_idx = layer_idx
         
@@ -29,7 +105,13 @@ class ActivationDataset(Dataset):
         # Filter for the specific layer
         df = df[df['layer_idx'] == layer_idx]
         
-        # Convert activation lists back to tensors
+        # Limit samples if specified for faster training
+        if max_samples and len(df) > max_samples:
+            print(f"Limiting to {max_samples} samples for faster training")
+            df = df.sample(n=max_samples, random_state=42)
+        
+        # Convert activation lists back to tensors more efficiently
+        print(f"Converting {len(df)} activations to tensor...")
         self.activations = []
         for _, row in df.iterrows():
             act = torch.tensor(row['activation'], dtype=torch.float32)
@@ -119,7 +201,15 @@ class SAETrainer(pl.LightningModule):
         learning_rate: float = 1e-3,
         tied_weights: bool = True,
         activation_fn: str = "relu",
-        output_dir: Optional[str] = None
+        output_dir: Optional[str] = None,
+        batch_size: int = 512,  # Increased batch size for speed
+        num_workers: int = 8,   # More workers for data loading
+        mixed_precision: bool = True,  # Enable mixed precision
+        gradient_accumulation_steps: int = 1,  # Gradient accumulation
+        early_stopping_patience: int = 10,  # Early stopping
+        lr_scheduler_patience: int = 5,  # LR scheduler patience
+        warmup_epochs: int = 5,  # Learning rate warmup
+        max_samples: Optional[int] = None  # Limit samples for faster training
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -131,8 +221,18 @@ class SAETrainer(pl.LightningModule):
         self.learning_rate = learning_rate
         self.output_dir = Path(output_dir) if output_dir else Path("sae_checkpoints")
         
+        # Performance optimization parameters
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.mixed_precision = mixed_precision
+        self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.early_stopping_patience = early_stopping_patience
+        self.lr_scheduler_patience = lr_scheduler_patience
+        self.warmup_epochs = warmup_epochs
+        self.max_samples = max_samples
+        
         # Create dataset to get input dimension
-        dataset = ActivationDataset(activation_path, layer_idx)
+        dataset = ActivationDataset(activation_path, layer_idx, max_samples=max_samples)
         input_dim = dataset.activations.shape[1]
         
         # Initialize SAE
@@ -194,17 +294,25 @@ class SAETrainer(pl.LightningModule):
         return loss_dict["loss"]
     
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        # Use AdamW for better performance
+        optimizer = torch.optim.AdamW(
+            self.parameters(), 
+            lr=self.learning_rate,
+            weight_decay=1e-4,  # Add weight decay for regularization
+            betas=(0.9, 0.999)
+        )
         
-        # Learning rate scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5
+        # Cosine annealing scheduler with warmup
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            T_0=10,  # Restart every 10 epochs
+            T_mult=2,  # Double the restart interval each time
+            eta_min=1e-6  # Minimum learning rate
         )
         
         return {
             "optimizer": optimizer,
-            "lr_scheduler": scheduler,
-            "monitor": "val_loss"
+            "lr_scheduler": scheduler
         }
     
     def setup(self, stage=None):
@@ -222,19 +330,23 @@ class SAETrainer(pl.LightningModule):
     def train_dataloader(self):
         return DataLoader(
             self.train_dataset,
-            batch_size=256,
+            batch_size=self.batch_size,
             shuffle=True,
-            num_workers=4,
-            pin_memory=True
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=True,  # Keep workers alive between epochs
+            prefetch_factor=2  # Prefetch batches
         )
     
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
-            batch_size=256,
+            batch_size=self.batch_size,
             shuffle=False,
-            num_workers=4,
-            pin_memory=True
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=True,
+            prefetch_factor=2
         )
     
     def on_train_end(self):
@@ -272,35 +384,128 @@ def train_sae(
     layer_idx: int,
     latent_dim: int = 16384,
     sparsity_coef: float = 1e-3,
+    learning_rate: float = 1e-3,
     max_epochs: int = 100,
-    gpus: int = 1
+    gpus: int = 1,
+    batch_size: int = 512,
+    num_workers: int = 8,
+    mixed_precision: bool = True,
+    gradient_accumulation_steps: int = 1,
+    early_stopping_patience: int = 10,
+    max_samples: Optional[int] = None,
+    strategy: str = "auto"
 ):
-    """Train a sparse autoencoder"""
+    """Train a sparse autoencoder with optimized settings for speed"""
     
-    # Create trainer
-    sae_trainer = SAETrainer(
+    print(f"🚀 Starting optimized SAE training for layer {layer_idx}")
+    print(f"📊 Configuration:")
+    print(f"   - Batch size: {batch_size}")
+    print(f"   - Workers: {num_workers}")
+    print(f"   - Mixed precision: {mixed_precision}")
+    print(f"   - Gradient accumulation: {gradient_accumulation_steps}")
+    print(f"   - Max samples: {max_samples or 'all'}")
+    
+    # Create trainer module with optimized settings
+    trainer_module = SAETrainer(
         activation_path=activation_path,
         layer_idx=layer_idx,
         latent_dim=latent_dim,
         sparsity_coef=sparsity_coef,
-        output_dir=output_dir
+        learning_rate=learning_rate,
+        output_dir=output_dir,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        mixed_precision=mixed_precision,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        early_stopping_patience=early_stopping_patience,
+        max_samples=max_samples
     )
     
-    # Lightning trainer
+    # Configure callbacks
+    callbacks = [
+        pl.callbacks.ModelCheckpoint(
+            dirpath=output_dir,
+            filename=f"sae_layer_{layer_idx}_epoch_{{epoch:02d}}_loss_{{val_loss:.4f}}",
+            monitor="val_loss",
+            mode="min",
+            save_top_k=3,
+            save_last=True
+        ),
+        pl.callbacks.EarlyStopping(
+            monitor="val_loss",
+            patience=early_stopping_patience,
+            mode="min",
+            verbose=True
+        ),
+        pl.callbacks.LearningRateMonitor(logging_interval='epoch'),
+        pl.callbacks.ProgressBar(refresh_rate=10)  # Update progress bar more frequently
+    ]
+    
+    # Configure trainer with optimizations
     trainer = pl.Trainer(
         max_epochs=max_epochs,
-        accelerator="auto",
-        devices=gpus,
-        precision=16,  # Use mixed precision
-        gradient_clip_val=1.0,
-        log_every_n_steps=50,
-        check_val_every_n_epoch=1
+        accelerator="gpu" if gpus > 0 else "cpu",
+        devices=gpus if gpus > 0 else None,
+        strategy=strategy,
+        precision="16-mixed" if mixed_precision else "32",
+        accumulate_grad_batches=gradient_accumulation_steps,
+        callbacks=callbacks,
+        enable_progress_bar=True,
+        log_every_n_steps=10,
+        val_check_interval=0.5,  # Validate twice per epoch
+        num_sanity_val_steps=2,  # Quick validation at start
+        reload_dataloaders_every_n_epochs=0,  # Don't reload dataloaders
+        sync_batchnorm=False,  # Disable for speed
+        deterministic=False,  # Disable for speed
+        benchmark=True,  # Enable cuDNN benchmarking
+        enable_checkpointing=True,
+        enable_model_summary=True,
+        max_time=None,  # No time limit
+        limit_train_batches=None,  # Use all batches
+        limit_val_batches=None,  # Use all validation batches
     )
     
-    # Train
-    trainer.fit(sae_trainer)
+    print(f"🎯 Training configuration:")
+    print(f"   - Precision: {trainer.precision}")
+    print(f"   - Strategy: {trainer.strategy}")
+    print(f"   - Devices: {trainer.devices}")
+    print(f"   - Accumulate grad batches: {trainer.accumulate_grad_batches}")
     
-    return sae_trainer
+    # Train
+    print(f"🚀 Starting training...")
+    trainer.fit(trainer_module)
+    
+    print(f"✅ Training completed!")
+    return trainer_module
+
+
+def train_sae_fast(
+    activation_path: str,
+    output_dir: str,
+    layer_idx: int,
+    latent_dim: int = 8192,  # Smaller for speed
+    max_samples: int = 50000,  # Limit samples
+    max_epochs: int = 50,  # Fewer epochs
+    gpus: int = 1
+):
+    """Ultra-fast SAE training with aggressive optimizations"""
+    return train_sae(
+        activation_path=activation_path,
+        output_dir=output_dir,
+        layer_idx=layer_idx,
+        latent_dim=latent_dim,
+        sparsity_coef=1e-3,
+        learning_rate=2e-3,  # Higher learning rate
+        max_epochs=max_epochs,
+        gpus=gpus,
+        batch_size=1024,  # Larger batch size
+        num_workers=12,  # More workers
+        mixed_precision=True,
+        gradient_accumulation_steps=2,
+        early_stopping_patience=5,  # Stop earlier
+        max_samples=max_samples,
+        strategy="ddp_find_unused_parameters_false" if gpus > 1 else "auto"
+    )
 
 
 if __name__ == "__main__":

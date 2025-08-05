@@ -68,6 +68,8 @@ InterpretabilityWorkbench/
 - **Live LoRA Patches**: Hot-swap model edits without restart
 - **Real-time Inference**: WebSocket-based token probability updates
 - **Export/Import**: Save SAE weights, patches, and feature analysis
+- **Comprehensive Logging**: Structured logging for debugging and monitoring
+- **Real-time Progress Tracking**: Live training progress with metrics and ETA
 
 ### 🔧 API Endpoints
 
@@ -81,6 +83,9 @@ InterpretabilityWorkbench/
 | `POST /inference` | Run inference with current patches |
 | `POST /export-sae` | Export SAE weights and metadata |
 | `GET /feature/{id}/details` | Get detailed feature analysis |
+| `POST /sae/train` | Start SAE training with progress tracking |
+| `GET /sae/training/status/{job_id}` | Get training job status and progress |
+| `GET /sae/training/jobs` | List all training jobs |
 
 ### 📈 Evaluation Metrics
 
@@ -90,6 +95,15 @@ The `eval.py` script computes:
 - **Feature Sparsity** (activation frequency)
 - **Dead Neuron Detection**
 - **Success Criteria**: MSE ≤ 0.15 (from project requirements)
+
+### 🪵 Logging & Monitoring
+
+- **Structured Logging**: Component-specific loggers (API, Model, SAE, Training, WebSocket)
+- **Log Rotation**: Automatic log file rotation (10MB max, 5 backups)
+- **Error Tracking**: Separate error logs for debugging
+- **Real-time Progress**: WebSocket-based training progress updates
+- **Training Metrics**: Live loss values, reconstruction loss, sparsity loss
+- **Time Estimates**: ETA calculations for training completion
 
 ## 🎯 Example Workflow
 
