@@ -69,23 +69,36 @@ class ModelState:
         
     def load_model(self, model_name: str):
         """Load model and tokenizer"""
-        from transformers import AutoModel, AutoTokenizer
-        
-        print(f"Loading model {model_name}...")
-        self.model_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map="auto"
-        )
-        
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        try:
+            from transformers import AutoModel, AutoTokenizer
+            import torch
             
-        self.model.eval()
-        self.patcher = LoRAPatcher(self.model)
-        print(f"Model {model_name} loaded successfully")
+            print(f"Loading model {model_name}...")
+            self.model_name = model_name
+            
+            print("Loading tokenizer...")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            
+            print("Loading model...")
+            self.model = AutoModel.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
+                device_map="auto"
+            )
+            
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+                
+            self.model.eval()
+            
+            print("Creating LoRA patcher...")
+            self.patcher = LoRAPatcher(self.model)
+            print(f"Model {model_name} loaded successfully")
+        except Exception as e:
+            import traceback
+            error_msg = f"Failed to load model {model_name}: {str(e)}\n{traceback.format_exc()}"
+            print(error_msg)
+            raise
     
     def load_sae(self, layer_idx: int, sae_path: str):
         """Load SAE for a specific layer"""
@@ -257,6 +270,9 @@ async def load_model(request: LoadModelRequest):
             "success": True
         }
     except Exception as e:
+        import traceback
+        error_detail = f"Error loading model {request.model_name}: {str(e)}\n{traceback.format_exc()}"
+        print(error_detail)  # Log to console
         raise HTTPException(status_code=500, detail=str(e))
 
 
