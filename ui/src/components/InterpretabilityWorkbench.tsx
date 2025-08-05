@@ -124,7 +124,10 @@ const useAppStore = () => {
   };
 
   const addPatch = (patch: Patch) => {
-    setState(prev => ({ ...prev, patches: [...prev.patches, patch] }));
+    setState(prev => ({ 
+      ...prev, 
+      patches: [...(Array.isArray(prev.patches) ? prev.patches : []), patch] 
+    }));
   };
 
   // Progress tracking helpers
@@ -206,7 +209,9 @@ const useAppStore = () => {
   const updatePatch = (id: string, updates: Partial<Patch>) => {
     setState(prev => ({
       ...prev,
-      patches: prev.patches.map(p => p.id === id ? { ...p, ...updates } : p)
+      patches: Array.isArray(prev.patches) 
+        ? prev.patches.map(p => p.id === id ? { ...p, ...updates } : p)
+        : []
     }));
   };
 
@@ -303,7 +308,7 @@ const useAppStore = () => {
       
       if (resetPagination) {
         updateState({
-          features: result.features,
+          features: Array.isArray(result.features) ? result.features : [],
           pagination: {
             ...state.pagination,
             offset: 0,
@@ -313,10 +318,10 @@ const useAppStore = () => {
         });
       } else {
         updateState({
-          features: [...state.features, ...result.features],
+          features: [...(Array.isArray(state.features) ? state.features : []), ...(Array.isArray(result.features) ? result.features : [])],
           pagination: {
             ...state.pagination,
-            offset: offset + result.features.length,
+            offset: offset + (Array.isArray(result.features) ? result.features.length : 0),
             total: result.total,
             hasMore: result.hasMore
           }
@@ -326,6 +331,8 @@ const useAppStore = () => {
       const errorMsg = error.response?.data?.detail || error.message || 'Failed to load features';
       updateError('features', errorMsg);
       toast.error(`Failed to load features: ${errorMsg}`);
+      // Set empty array on error
+      updateState({ features: [] });
     } finally {
       updateLoading({ features: false });
     }
@@ -364,7 +371,7 @@ const useAppStore = () => {
   const createPatch = async (featureId: string, name: string, strength: number, description?: string) => {
     try {
       const patch = await apiClient.createPatch({ featureId, name, strength, description });
-      updateState({ patches: [...state.patches, patch] });
+      updateState({ patches: [...(Array.isArray(state.patches) ? state.patches : []), patch] });
       toast.success('Patch created successfully');
       return patch;
     } catch (error: any) {
@@ -1101,7 +1108,7 @@ const FeatureTable: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ sto
   const { state, updateState } = store;
 
   const filteredFeatures = useMemo(() => {
-    let filtered = state.features;
+    let filtered = Array.isArray(state.features) ? state.features : [];
     
     if (state.searchQuery) {
       filtered = filtered.filter(f => 
@@ -1158,7 +1165,7 @@ const FeatureTable: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ sto
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Layers</SelectItem>
-            {Array.from(new Set(state.features.map(f => f.layer))).map(layer => (
+            {Array.from(new Set((Array.isArray(state.features) ? state.features : []).map(f => f.layer))).map(layer => (
               <SelectItem key={layer} value={layer.toString()}>Layer {layer}</SelectItem>
             ))}
           </SelectContent>
@@ -1405,7 +1412,8 @@ const PatchConsole: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ sto
   const [results, setResults] = useState<Array<{ token: string; original: number; patched: number }>>([]);
 
   const togglePatch = (id: string) => {
-    const patch = state.patches.find(p => p.id === id);
+    const patches = Array.isArray(state.patches) ? state.patches : [];
+    const patch = patches.find(p => p.id === id);
     if (patch) {
       updatePatch(id, { isEnabled: !patch.isEnabled });
       toast.success(`Patch ${patch.isEnabled ? 'disabled' : 'enabled'}`);
@@ -1434,7 +1442,7 @@ const PatchConsole: React.FC<{ store: ReturnType<typeof useAppStore> }> = ({ sto
       <div className="mb-6">
         <h3 className="text-lg font-semibold mb-4">Active Patches</h3>
         <div className="space-y-3 max-h-60 overflow-auto">
-          {state.patches.length === 0 ? (
+          {!Array.isArray(state.patches) || state.patches.length === 0 ? (
             <p className="text-sm text-muted-foreground">No patches created yet</p>
           ) : (
             state.patches.map((patch) => (
