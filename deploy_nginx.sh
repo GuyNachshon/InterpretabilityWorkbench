@@ -126,23 +126,23 @@ create_nginx_config() {
     cat > "$PROJECT_ROOT/nginx.conf" << EOF
 server {
     listen 80;
-    server_name localhost 34.55.113.128;  # Change this to your domain in production
+    server_name localhost 34.61.238.238;  # Change this to your domain in production
 
-    # Proxy API requests to FastAPI backend
-    location /api/ {
-        proxy_pass http://localhost:8000/;
+    # Proxy WebSocket connections (must come before catch-all)
+    location /ws {
+        proxy_pass http://localhost:8000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Proxy WebSocket connections
-    location /ws {
-        proxy_pass http://localhost:8000/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+    # Proxy API requests to FastAPI backend
+    location /api/ {
+        proxy_pass http://localhost:8000/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -158,17 +158,24 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Serve static files (React app)
+    # Serve static files (React app) - must be last
     location / {
         root /home/guy_na8/workspace/InterpretabilityWorkbench/ui/dist;
         try_files $uri $uri/ /index.html;
         index index.html;
         
-        # Add cache-busting headers for JavaScript files
+        # Add cache-busting headers for all static files
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+        
+        # Extra cache-busting for JavaScript files
         location ~* \.(js|css)$ {
-            add_header Cache-Control "no-cache, no-store, must-revalidate";
+            add_header Cache-Control "no-cache, no-store, must-revalidate, max-age=0";
             add_header Pragma "no-cache";
             add_header Expires "0";
+            add_header Last-Modified $date_gmt;
+            add_header ETag "";
         }
     }
 
