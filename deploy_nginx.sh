@@ -130,7 +130,7 @@ server {
 
     # Proxy API requests to FastAPI backend
     location /api/ {
-        proxy_pass http://localhost:8000/;
+        proxy_pass http://localhost:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -160,8 +160,8 @@ server {
 
     # Serve static files (React app)
     location / {
-        root /home/guy_na8/workspace/InterpretabilityWorkbench/ui/dist;
-        try_files $uri $uri/ /index.html;
+        root $DIST_PATH;
+        try_files \$uri \$uri/ /index.html;
         index index.html;
         
         # Add cache-busting headers for JavaScript files
