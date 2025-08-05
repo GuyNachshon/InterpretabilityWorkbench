@@ -128,7 +128,7 @@ server {
     listen 80;
     server_name localhost 34.61.238.238;  # Change this to your domain in production
 
-    # Proxy WebSocket connections (must come before catch-all)
+    # Proxy WebSocket connections
     location /ws {
         proxy_pass http://127.0.0.1:8000/ws;
         proxy_http_version 1.1;
@@ -140,17 +140,8 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Proxy API requests to FastAPI backend
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Proxy other API endpoints (exact matches to avoid conflicts)
-    location = /health {
+    # Proxy API endpoints - more specific to avoid conflicts
+    location ~ ^/(health|ping|model|sae|features|patch|inference|export|load-model|load-sae) {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -158,23 +149,7 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    location = /ping {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    location ~ ^/(model|sae|features|patch|inference|export|load-model|load-sae) {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Serve static files (React app) - must be last
+    # Serve static files (React app)
     location / {
         root /home/guy_na8/workspace/InterpretabilityWorkbench/ui/dist;
         try_files $uri $uri/ /index.html;
