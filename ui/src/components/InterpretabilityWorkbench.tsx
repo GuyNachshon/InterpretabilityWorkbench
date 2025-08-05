@@ -211,7 +211,10 @@ const useAppStore = () => {
   };
 
   const removePatch = (id: string) => {
-    setState(prev => ({ ...prev, patches: prev.patches.filter(p => p.id !== id) }));
+    setState(prev => ({ 
+      ...prev, 
+      patches: Array.isArray(prev.patches) ? prev.patches.filter(p => p.id !== id) : [] 
+    }));
   };
 
   // API Integration Methods

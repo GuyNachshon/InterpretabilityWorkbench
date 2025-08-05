@@ -285,7 +285,8 @@ async def load_sae(request: LoadSAERequest):
                 )
                 model_state.feature_analyzers[request.layer_idx] = analyzer
         
-        model_state.analyze_features(request.layer_idx, request.activationsPath)
+        # Analyze only top 20 features to reduce memory usage
+        model_state.analyze_features(request.layer_idx, request.activationsPath, top_k=20)
         return {"success": True, "layer_idx": request.layer_idx}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

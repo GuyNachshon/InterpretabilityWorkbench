@@ -126,11 +126,11 @@ create_nginx_config() {
     cat > "$PROJECT_ROOT/nginx.conf" << EOF
 server {
     listen 80;
-    server_name localhost;  # Change this to your domain in production
+    server_name localhost 34.55.113.128;  # Change this to your domain in production
 
     # Proxy API requests to FastAPI backend
     location /api/ {
-        proxy_pass http://localhost:$BACKEND_PORT/;
+        proxy_pass http://localhost:8000/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -139,7 +139,7 @@ server {
 
     # Proxy WebSocket connections
     location /ws {
-        proxy_pass http://localhost:$BACKEND_PORT/ws;
+        proxy_pass http://localhost:8000/ws;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -150,18 +150,26 @@ server {
     }
 
     # Proxy other API endpoints
-    location ~ ^/(model|sae|features|patch|inference|export|health|ping) {
-        proxy_pass http://localhost:$BACKEND_PORT;
+    location ~ ^/(model|sae|features|patch|inference|export|health|ping|load-model|load-sae) {
+        proxy_pass http://localhost:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+
     # Serve static files (React app)
     location / {
-        root $DIST_PATH;
-        try_files \$uri \$uri/ /index.html;
+        root /home/guy_na8/workspace/InterpretabilityWorkbench/ui/dist;
+        try_files $uri $uri/ /index.html;
         index index.html;
+        
+        # Add cache-busting headers for JavaScript files
+        location ~* \.(js|css)$ {
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+            add_header Pragma "no-cache";
+            add_header Expires "0";
+        }
     }
 
     # Gzip compression
@@ -169,7 +177,7 @@ server {
     gzip_vary on;
     gzip_min_length 1024;
     gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json;
-}
+} 
 EOF
     
     print_status "Nginx configuration created"
