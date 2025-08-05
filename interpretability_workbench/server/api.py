@@ -281,6 +281,9 @@ class LoadSAERequest(BaseModel):
     saePath: str
     activationsPath: str
 
+
+
+
 @app.post("/load-sae")
 async def load_sae(request: LoadSAERequest):
     """Load SAE for a specific layer"""
@@ -306,6 +309,9 @@ async def load_sae(request: LoadSAERequest):
         return {"success": True, "layer_idx": request.layer_idx}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 
 @app.get("/features")

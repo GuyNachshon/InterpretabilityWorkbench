@@ -69,6 +69,19 @@ export interface LoadSAERequest {
   activationsPath: string;
 }
 
+export interface LoadGoodfireSAERequest {
+  sae_name: string;
+  activationsPath?: string;
+}
+
+export interface LoadGoodfireSAEResponse {
+  success: boolean;
+  layer_idx: number;
+  sae_name: string;
+  layer_name: string;
+  expansion_factor: number;
+}
+
 export interface CreatePatchRequest {
   featureId: string;
   name: string;
@@ -175,6 +188,11 @@ class APIClient {
   // SAE Management
   async loadSAE(request: LoadSAERequest): Promise<SAEStatus> {
     const response = await this.client.post('/load-sae', request);
+    return response.data;
+  }
+
+  async loadGoodfireSAE(request: LoadGoodfireSAERequest): Promise<LoadGoodfireSAEResponse> {
+    const response = await this.client.post('/load-goodfire-sae', request);
     return response.data;
   }
 

@@ -52,6 +52,9 @@ dependencies = [
     "bitsandbytes>=0.41.0",
     "peft>=0.6.0",
     
+    # Hugging Face integration
+    "huggingface-hub>=0.16.0",
+    
     # Utilities
     "pathlib",
     "typing-extensions>=4.8.0",
